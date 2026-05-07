@@ -9,6 +9,7 @@ const CONFIG_FILENAME = 'gui_config.json';
 export class ConfigManager {
   private static cachedConfig: AppConfig | null = null;
   private static saveQueue: Promise<void> = Promise.resolve();
+  private static missingConfigLogged = false;
 
   private static getConfigPath(): string {
     const appDataDir = getAppDataDir();
@@ -22,7 +23,10 @@ export class ConfigManager {
     try {
       const configPath = this.getConfigPath();
       if (!fs.existsSync(configPath)) {
-        logger.info(`Config: File not found at ${configPath}, returning default`);
+        if (!this.missingConfigLogged) {
+          logger.info(`Config: File not found at ${configPath}, using defaults`);
+          this.missingConfigLogged = true;
+        }
         this.cachedConfig = DEFAULT_APP_CONFIG;
         return DEFAULT_APP_CONFIG;
       }
