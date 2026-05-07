@@ -8,7 +8,12 @@ import { z } from 'zod';
 import { CloudAccountRepo } from '../ipc/database/cloudHandler';
 import { ConfigManager } from '../ipc/config/manager';
 import { GoogleAPIService } from '../services/GoogleAPIService';
-import { bootstrapNestServer, getNestServerStatus, stopNestServer } from '../server/main';
+import {
+  bootstrapNestServer,
+  getModelRoutingTable,
+  getNestServerStatus,
+  stopNestServer,
+} from '../server/main';
 import { logger } from '../utils/logger';
 import { CloudAccount } from '../types/cloudAccount';
 import { AppConfigSchema } from '../types/config';
@@ -137,6 +142,11 @@ async function registerRoutes(instance: FastifyInstance) {
   });
 
   instance.get('/api/proxy/status', async () => getNestServerStatus());
+
+  instance.get('/api/proxy/model-routing', async () => {
+    const table = getModelRoutingTable();
+    return { rows: table };
+  });
 
   instance.post('/api/proxy/start', async () => {
     const config = ConfigManager.loadConfig();

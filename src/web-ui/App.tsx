@@ -4,6 +4,7 @@ import {
   auth,
   AccountModelInfo,
   AccountSummary,
+  ModelRoutingRow,
   ProxyStatus,
   UnauthorizedError,
 } from './api';
@@ -547,6 +548,83 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   );
 }
 
+function ModelRoutingPanel({
+  rows,
+  accounts,
+}: {
+  rows: ModelRoutingRow[];
+  accounts: AccountSummary[];
+}) {
+  const emailById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) m.set(a.id, a.email);
+    return m;
+  }, [accounts]);
+
+  if (rows.length === 0) {
+    return (
+      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+        <h2 className="text-base font-semibold">Model routing</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          No model has been routed yet. Send a request through the proxy and it will show up here.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+      <h2 className="text-base font-semibold">Model routing</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        Each model is pinned to one account. When that account&apos;s quota for the model
+        runs out, the pointer advances to the next available account.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="py-2 pr-4">Model</th>
+              <th className="py-2 pr-4">Currently serving</th>
+              <th className="py-2 pr-4">Exhausted</th>
+              <th className="py-2">Available</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const exhaustedEmails = row.exhausted_account_ids
+                .map((id) => emailById.get(id) ?? id.slice(0, 8))
+                .join(', ');
+              const availableEmails = row.available_account_ids
+                .map((id) => emailById.get(id) ?? id.slice(0, 8))
+                .join(', ');
+              return (
+                <tr key={row.model} className="border-b border-slate-800/60">
+                  <td className="py-2 pr-4 font-mono text-xs">{row.model}</td>
+                  <td className="py-2 pr-4">
+                    {row.current_account_email ? (
+                      <span className="rounded bg-emerald-900/40 px-2 py-0.5 text-emerald-200 ring-1 ring-emerald-700/50">
+                        {row.current_account_email}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-4 text-xs text-rose-300">
+                    {exhaustedEmails || <span className="text-slate-600">none</span>}
+                  </td>
+                  <td className="py-2 text-xs text-slate-300">
+                    {availableEmails || <span className="text-slate-600">none</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const [authed, setAuthed] = useState<boolean>(() => Boolean(auth.getToken()));
   const [accountsState, setAccountsState] = useState<LoadState<AccountSummary[]>>({
@@ -554,6 +632,7 @@ export function App() {
   });
   const [proxy, setProxy] = useState<ProxyStatus | null>(null);
   const [proxyApiKey, setProxyApiKey] = useState<string | null>(null);
+  const [routingRows, setRoutingRows] = useState<ModelRoutingRow[]>([]);
 
   const handleAuthError = useCallback((err: unknown) => {
     if (err instanceof UnauthorizedError) {
@@ -587,10 +666,20 @@ export function App() {
     }
   }, [handleAuthError]);
 
+  const reloadRouting = useCallback(async () => {
+    try {
+      const result = await api.modelRouting();
+      setRoutingRows(result.rows);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+    }
+  }, [handleAuthError]);
+
   const reloadAll = useCallback(() => {
     reloadAccounts();
     reloadProxy();
-  }, [reloadAccounts, reloadProxy]);
+    reloadRouting();
+  }, [reloadAccounts, reloadProxy, reloadRouting]);
 
   useEffect(() => {
     if (!authed) return;
@@ -648,6 +737,7 @@ export function App() {
 
       <main className="mx-auto max-w-4xl space-y-5 px-6 py-8">
         <ProxyPanel status={proxy} apiKey={proxyApiKey} refresh={reloadProxy} />
+        <ModelRoutingPanel rows={routingRows} accounts={accounts} />
         <AddAccountPanel onAdded={reloadAccounts} />
         <AccountsPanel accounts={accounts} loading={loading} onChanged={reloadAccounts} />
         {accountsState.status === 'error' ? (

@@ -34,6 +34,14 @@ export interface ProxyStatus {
   active_accounts: number;
 }
 
+export interface ModelRoutingRow {
+  model: string;
+  current_account_id: string | null;
+  current_account_email: string | null;
+  exhausted_account_ids: string[];
+  available_account_ids: string[];
+}
+
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
 const TOKEN_STORAGE_KEY = 'agm.token';
 
@@ -102,6 +110,7 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
   me: () => request<{ ok: boolean }>('/api/auth/me'),
   proxyStatus: () => request<ProxyStatus>('/api/proxy/status'),
+  modelRouting: () => request<{ rows: ModelRoutingRow[] }>('/api/proxy/model-routing'),
   proxyApiKey: () => request<{ api_key: string }>('/api/proxy/api-key'),
   startProxy: () => request<{ ok: boolean }>('/api/proxy/start', { method: 'POST' }),
   stopProxy: () => request<{ ok: boolean }>('/api/proxy/stop', { method: 'POST' }),

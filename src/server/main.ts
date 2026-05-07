@@ -84,3 +84,21 @@ export async function getNestServerStatus(): Promise<{
     active_accounts: activeAccounts,
   };
 }
+
+export function getModelRoutingTable(): Array<{
+  model: string;
+  current_account_id: string | null;
+  current_account_email: string | null;
+  exhausted_account_ids: string[];
+  available_account_ids: string[];
+}> {
+  if (!app) {
+    return [];
+  }
+  try {
+    const tokenManager = app.get(TokenManagerService);
+    return tokenManager.getModelRoutingTable();
+  } catch {
+    return [];
+  }
+}

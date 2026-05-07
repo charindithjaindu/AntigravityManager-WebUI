@@ -89,6 +89,7 @@ export class TokenManagerService implements OnModuleInit {
   private tokens: Map<string, TokenData> = new Map();
   private accountCooldowns: Map<string, number> = new Map();
   private sessionBindings: Map<string, { accountId: string; expiresAt: number }> = new Map();
+  private modelAccountPointer: Map<string, string> = new Map();
   private rateLimitTracker = new RateLimitTracker();
   private refreshLocks: Map<string, Promise<void>> = new Map();
   private projectIdLocks: Map<string, Promise<string | undefined>> = new Map();
@@ -140,6 +141,7 @@ export class TokenManagerService implements OnModuleInit {
   clearAllRateLimits(): void {
     this.accountCooldowns.clear();
     this.rateLimitTracker.clearAll();
+    this.modelAccountPointer.clear();
   }
 
   recordParityError(): void {
@@ -314,7 +316,7 @@ export class TokenManagerService implements OnModuleInit {
 
       const selectedTokenEntry = this.isParitySchedulingEnabled()
         ? await this.selectParityTokenCandidate(candidateAccountPool, sessionKey, model, now)
-        : this.selectLegacyTokenCandidate(candidateAccountPool, sessionKey, now);
+        : this.selectLegacyTokenCandidate(candidateAccountPool, sessionKey, now, model);
 
       if (!selectedTokenEntry) {
         return null;
@@ -452,6 +454,63 @@ export class TokenManagerService implements OnModuleInit {
     this.currentIndex = 0;
   }
 
+  private pickStickyModelAccount(
+    model: string | undefined,
+    candidates: TokenEntry[],
+  ): TokenEntry | null {
+    if (!model || candidates.length === 0) {
+      return null;
+    }
+    const pinnedId = this.modelAccountPointer.get(model);
+    if (pinnedId) {
+      const found = candidates.find(([accountId]) => accountId === pinnedId);
+      if (found) {
+        return found;
+      }
+    }
+    const next = candidates[0];
+    if (next) {
+      this.modelAccountPointer.set(model, next[0]);
+      if (pinnedId && pinnedId !== next[0]) {
+        this.logger.log(
+          `[ModelRouter] Advanced pointer for "${model}": ${pinnedId} -> ${next[0]}`,
+        );
+      } else if (!pinnedId) {
+        this.logger.log(`[ModelRouter] Pinned model "${model}" to account ${next[0]}`);
+      }
+    }
+    return next ?? null;
+  }
+
+  getModelRoutingTable(): Array<{
+    model: string;
+    current_account_id: string | null;
+    current_account_email: string | null;
+    exhausted_account_ids: string[];
+    available_account_ids: string[];
+  }> {
+    const allAccountIds = Array.from(this.tokens.keys());
+    const allModels = new Set<string>(this.modelAccountPointer.keys());
+
+    return Array.from(allModels)
+      .sort()
+      .map((model) => {
+        const exhausted = allAccountIds.filter((accountId) =>
+          this.rateLimitTracker.isRateLimited(accountId, model),
+        );
+        const available = allAccountIds.filter((accountId) => !exhausted.includes(accountId));
+        const pinnedId = this.modelAccountPointer.get(model) ?? null;
+        const pinnedToken = pinnedId ? this.tokens.get(pinnedId) : null;
+        return {
+          model,
+          current_account_id: pinnedId,
+          current_account_email: pinnedToken?.email ?? null,
+          exhausted_account_ids: exhausted,
+          available_account_ids: available,
+        };
+      });
+  }
+
   private pickRoundRobinEntry(candidates: TokenEntry[]): TokenEntry | null {
     if (candidates.length === 0) {
       return null;
@@ -472,10 +531,14 @@ export class TokenManagerService implements OnModuleInit {
     allTokens: TokenEntry[],
     sessionKey: string | undefined,
     now: number,
+    model?: string,
   ): TokenEntry | null {
     const availableByCooldown = allTokens.filter(([accountId]) => {
       const cooldownUntil = this.accountCooldowns.get(accountId);
-      return !cooldownUntil || cooldownUntil <= now;
+      if (cooldownUntil && cooldownUntil > now) {
+        return false;
+      }
+      return !this.rateLimitTracker.isRateLimited(accountId, model);
     });
 
     const candidateAccountPool = availableByCooldown.length > 0 ? availableByCooldown : allTokens;
@@ -492,6 +555,11 @@ export class TokenManagerService implements OnModuleInit {
     const stickyToken = this.findStickySessionToken(candidateAccountPool, sessionKey, now);
     if (stickyToken) {
       return stickyToken;
+    }
+
+    const stickyModelToken = this.pickStickyModelAccount(model, candidateAccountPool);
+    if (stickyModelToken) {
+      return stickyModelToken;
     }
 
     return this.pickRoundRobinEntry(candidateAccountPool);
@@ -520,6 +588,11 @@ export class TokenManagerService implements OnModuleInit {
     const stickyToken = this.findStickySessionToken(availableTokens, sessionKey, now);
     if (stickyToken) {
       return stickyToken;
+    }
+
+    const stickyModelToken = this.pickStickyModelAccount(model, availableTokens);
+    if (stickyModelToken) {
+      return stickyModelToken;
     }
 
     const stickyBinding = this.getValidSessionBinding(sessionKey, now);
