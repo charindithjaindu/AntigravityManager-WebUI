@@ -182,6 +182,45 @@ async function registerRoutes(instance: FastifyInstance) {
     return { accounts: accounts.map(buildAccountSummary) };
   });
 
+  instance.get<{ Params: { id: string } }>(
+    '/api/debug/account-models/:id',
+    async (req, reply) => {
+      const account = await CloudAccountRepo.getAccount(req.params.id);
+      if (!account) {
+        reply.status(404);
+        return { ok: false, error: 'Account not found' };
+      }
+      try {
+        const quota = await GoogleAPIService.fetchQuota(
+          account.token.access_token,
+          account.proxy_url,
+        );
+        const models = Object.entries(quota.models ?? {}).map(([id, info]) => ({
+          id: id.replace(/^models\//, ''),
+          display_name: info.display_name ?? null,
+          percentage: Number.isFinite(info.percentage) ? Math.round(info.percentage) : null,
+          reset_time: info.resetTime || null,
+          max_output_tokens: info.max_output_tokens ?? info.max_tokens ?? null,
+          supports_thinking: Boolean(info.supports_thinking),
+          supports_images: Boolean(info.supports_images),
+          recommended: Boolean(info.recommended),
+          raw: info,
+        }));
+        return {
+          ok: true,
+          email: account.email,
+          subscription_tier: quota.subscription_tier ?? null,
+          model_count: models.length,
+          models,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Quota fetch failed';
+        reply.status(502);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
   instance.delete<{ Params: { id: string } }>('/api/accounts/:id', async (req) => {
     await CloudAccountRepo.removeAccount(req.params.id);
     return { ok: true };

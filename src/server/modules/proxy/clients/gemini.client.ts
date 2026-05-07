@@ -76,7 +76,7 @@ export class GeminiClient {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.error(
-          `Gemini request failed: ${error.message} - ${this.safeStringify(error.response?.data)}`,
+          `Gemini request failed: model=${model} ${error.message} - ${this.safeStringify(error.response?.data)}`,
         );
         throw new UpstreamRequestError({
           message: error.response?.data?.error?.message || error.message,
@@ -219,6 +219,14 @@ export class GeminiClient {
           });
         } catch (error) {
           lastError = error;
+          if (axios.isAxiosError(error)) {
+            this.logger.warn(
+              `[${operation}] upstream rejected at ${baseUrl}: status=${error.response?.status} ` +
+                `model=${body.model} project=${body.project ?? '(none)'} ` +
+                `enabledCreditTypes=${JSON.stringify(body.enabledCreditTypes ?? null)} ` +
+                `body=${this.safeStringify(error.response?.data).slice(0, 500)}`,
+            );
+          }
 
           if (this.shouldRetryWithoutProjectHeader(error, projectHeaders)) {
             this.logger.warn(
