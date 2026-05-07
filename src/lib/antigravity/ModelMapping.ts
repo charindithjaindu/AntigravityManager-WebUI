@@ -5,34 +5,36 @@ const PUBLIC_SUPPORTED_MODELS = [
   'gemini-3.1-pro-high',
   'gemini-3.1-pro-low',
   'gemini-3-flash',
-  'claude-sonnet-4-6-thinking',
+  'claude-sonnet-4-6',
   'claude-opus-4-6-thinking',
 ] as const;
 
+// Upstream uses "claude-sonnet-4-6" (no -thinking suffix in the ID;
+// the "(Thinking)" lives in display_name) but "claude-opus-4-6-thinking".
 const CLAUDE_TO_GEMINI: Record<string, string> = {
   // Directly supported models
-  'claude-sonnet-4-6-thinking': 'claude-sonnet-4-6-thinking',
+  'claude-sonnet-4-6': 'claude-sonnet-4-6',
   'claude-opus-4-6-thinking': 'claude-opus-4-6-thinking',
   'gemini-3.1-pro-low': 'gemini-3.1-pro-low',
   'gemini-3.1-pro-high': 'gemini-3.1-pro-high',
   'gemini-3-flash': 'gemini-3-flash',
 
   // Alias mappings
-  'claude-sonnet-4-6': 'claude-sonnet-4-6-thinking',
-  'claude-sonnet-4-6-20260219': 'claude-sonnet-4-6-thinking',
-  'claude-sonnet-4-5': 'claude-sonnet-4-6-thinking',
-  'claude-sonnet-4-5-thinking': 'claude-sonnet-4-6-thinking',
-  'claude-sonnet-4-5-20250929': 'claude-sonnet-4-6-thinking',
-  'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6-thinking',
-  'claude-3-5-sonnet-20240620': 'claude-sonnet-4-6-thinking',
+  'claude-sonnet-4-6-thinking': 'claude-sonnet-4-6',
+  'claude-sonnet-4-6-20260219': 'claude-sonnet-4-6',
+  'claude-sonnet-4-5': 'claude-sonnet-4-6',
+  'claude-sonnet-4-5-thinking': 'claude-sonnet-4-6',
+  'claude-sonnet-4-5-20250929': 'claude-sonnet-4-6',
+  'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6',
+  'claude-3-5-sonnet-20240620': 'claude-sonnet-4-6',
   'claude-opus-4': 'claude-opus-4-6-thinking',
   'claude-opus-4-5-thinking': 'claude-opus-4-6-thinking',
   'claude-opus-4-5-20251101': 'claude-opus-4-6-thinking',
   'claude-opus-4-6': 'claude-opus-4-6-thinking',
   'claude-opus-4-6-20260201': 'claude-opus-4-6-thinking',
-  'claude-haiku-4': 'claude-sonnet-4-6-thinking',
-  'claude-3-haiku-20240307': 'claude-sonnet-4-6-thinking',
-  'claude-haiku-4-5-20251001': 'claude-sonnet-4-6-thinking',
+  'claude-haiku-4': 'claude-sonnet-4-6',
+  'claude-3-haiku-20240307': 'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001': 'claude-sonnet-4-6',
 
   // OpenAI Protocol Mapping
   'gpt-4': 'gemini-3-flash',
