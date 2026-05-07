@@ -190,7 +190,16 @@ export function getAllDynamicModels(
     }
   }
 
-  const visible = [...modelIds].filter((id) => !shouldHideDeprecatedModelFromList(id));
+  const hideImageModels = isImageModelsHidden();
+  const visible = [...modelIds].filter((id) => {
+    if (shouldHideDeprecatedModelFromList(id)) {
+      return false;
+    }
+    if (hideImageModels && isImageModelId(id)) {
+      return false;
+    }
+    return true;
+  });
   const prefixed: string[] = [];
   for (const id of visible) {
     if (id.includes('/')) {
@@ -203,6 +212,15 @@ export function getAllDynamicModels(
   }
 
   return [...new Set([...visible, ...prefixed])].sort();
+}
+
+function isImageModelId(modelId: string): boolean {
+  return /(^|[/\-])image(?:[-_/.]|$)/i.test(modelId);
+}
+
+function isImageModelsHidden(): boolean {
+  const raw = process.env.AGM_HIDE_IMAGE_MODELS?.trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
 export function mapClaudeModelToGemini(input: string): string {
