@@ -1,5 +1,6 @@
 import modelSpecsJson from './model-specs';
 import { isNumber } from 'lodash-es';
+import { stripProviderPrefix } from './ModelMapping';
 
 type ModelSpec = {
   max_output_tokens?: number;
@@ -18,7 +19,7 @@ const DEFAULT_THINKING_BUDGET = 24576;
 const SPECS = modelSpecsJson as SpecsConfig;
 
 export function resolveModelAlias(modelId: string): string {
-  const normalized = modelId.trim();
+  const normalized = stripProviderPrefix(modelId.trim());
   return SPECS.aliases[normalized] ?? normalized;
 }
 

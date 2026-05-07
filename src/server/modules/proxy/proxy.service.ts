@@ -29,6 +29,7 @@ import { getServerConfig } from '../../server-config';
 import {
   normalizeGeminiModelAlias,
   resolveModelRoute,
+  stripProviderPrefix,
 } from '../../../lib/antigravity/ModelMapping';
 import { getMaxOutputTokens, getThinkingBudget } from '../../../lib/antigravity/ModelSpecs';
 import { resolveRequestUserAgent } from './request-user-agent';
@@ -630,11 +631,11 @@ export class ProxyService {
   }
 
   private normalizeGeminiModel(model: string): string {
-    return model.replace(/^models\//i, '');
+    return stripProviderPrefix(model.replace(/^models\//i, ''));
   }
 
   private normalizeModelIdentifier(model: string): string {
-    return model.replace(/^models\//i, '').trim();
+    return stripProviderPrefix(model.replace(/^models\//i, '').trim());
   }
 
   private resolveThinkingLevelBudget(level: string): number | undefined {

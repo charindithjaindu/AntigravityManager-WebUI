@@ -77,6 +77,17 @@ const DYNAMIC_IMAGE_RESOLUTIONS = ['', '-2k', '-4k'];
 const DYNAMIC_IMAGE_RATIOS = ['', '-1x1', '-4x3', '-3x4', '-16x9', '-9x16', '-21x9'];
 const EXTRA_DYNAMIC_MODELS = ['gemini-3-flash', 'gemini-3.1-pro-high', 'gemini-3.1-pro-low'];
 
+const PROVIDER_PREFIXES = new Set([
+  'google',
+  'anthropic',
+  'openai',
+  'gemini',
+  'claude',
+  'xai',
+  'meta',
+  'antigravity',
+]);
+
 const DYNAMIC_MODEL_FORWARDING_RULES = new Map<string, string>();
 
 export const MODEL_LIST_CREATED_AT = 1770652800;
@@ -92,6 +103,36 @@ const GEMINI_MODEL_ALIASES: Record<string, string> = {
 
 export function getSupportedModels(): string[] {
   return [...PUBLIC_SUPPORTED_MODELS];
+}
+
+export function stripProviderPrefix(modelId: string): string {
+  if (!isString(modelId) || isEmpty(modelId)) {
+    return modelId;
+  }
+  const slashIdx = modelId.indexOf('/');
+  if (slashIdx <= 0) {
+    return modelId;
+  }
+  const prefix = modelId.slice(0, slashIdx).toLowerCase();
+  if (PROVIDER_PREFIXES.has(prefix)) {
+    return modelId.slice(slashIdx + 1);
+  }
+  return modelId;
+}
+
+export function inferProviderPrefix(modelId: string): string | null {
+  const m = modelId.toLowerCase();
+  if (m.startsWith('claude')) return 'anthropic';
+  if (m.startsWith('gemini')) return 'google';
+  if (
+    m.startsWith('gpt') ||
+    m.startsWith('o1-') ||
+    m.startsWith('o3-') ||
+    m.startsWith('o4-')
+  ) {
+    return 'openai';
+  }
+  return null;
 }
 
 export function updateDynamicForwardingRules(oldModel: string, newModel: string): void {
@@ -147,24 +188,38 @@ export function getAllDynamicModels(
     }
   }
 
-  return [...modelIds].filter((id) => !shouldHideDeprecatedModelFromList(id)).sort();
+  const visible = [...modelIds].filter((id) => !shouldHideDeprecatedModelFromList(id));
+  const prefixed: string[] = [];
+  for (const id of visible) {
+    if (id.includes('/')) {
+      continue;
+    }
+    const provider = inferProviderPrefix(id);
+    if (provider) {
+      prefixed.push(`${provider}/${id}`);
+    }
+  }
+
+  return [...new Set([...visible, ...prefixed])].sort();
 }
 
 export function mapClaudeModelToGemini(input: string): string {
   if (!isString(input) || isEmpty(input)) {
     return '';
   }
-  const mappedModel = CLAUDE_TO_GEMINI[input];
+  const stripped = stripProviderPrefix(input);
+  const mappedModel = CLAUDE_TO_GEMINI[stripped];
   if (mappedModel) {
     return mappedModel;
   }
 
-  return input;
+  return stripped;
 }
 
 export function normalizeGeminiModelAlias(modelId: string): string {
-  const normalizedModelId = modelId.trim().toLowerCase();
-  return GEMINI_MODEL_ALIASES[normalizedModelId] ?? modelId;
+  const stripped = stripProviderPrefix(modelId);
+  const normalizedModelId = stripped.trim().toLowerCase();
+  return GEMINI_MODEL_ALIASES[normalizedModelId] ?? stripped;
 }
 
 /**
@@ -172,11 +227,12 @@ export function normalizeGeminiModelAlias(modelId: string): string {
  * Priority: Custom Mapping (Exact) > Group Mapping (Family) > System Mapping (Built-in Plugin)
  */
 export function resolveModelRoute(
-  originalModel: string,
+  inputModel: string,
   customMapping: Record<string, string>,
   openaiMapping: Record<string, string>,
   anthropicMapping: Record<string, string>,
 ): string {
+  const originalModel = stripProviderPrefix(inputModel);
   const dynamicForwarded = getDynamicForwardingTarget(originalModel);
   if (dynamicForwarded && getSupportedModels().includes(dynamicForwarded)) {
     logger.info(
