@@ -32,7 +32,8 @@ function loadElectron(): typeof import('electron') | null {
   }
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    cachedElectronModule = require('electron');
+    const loaded = require('electron') as typeof import('electron');
+    cachedElectronModule = loaded ?? null;
     return cachedElectronModule;
   } catch {
     cachedElectronModule = null;
